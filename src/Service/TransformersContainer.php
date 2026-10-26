@@ -11,8 +11,10 @@
 
 namespace Dmytrof\FractalBundle\Service;
 
+use ArrayIterator;
 use Dmytrof\FractalBundle\{Exception\TransformerException, Transformer\AbstractTransformer};
 use Doctrine\Common\Collections\{ArrayCollection, Collection};
+use Traversable;
 
 class TransformersContainer implements \IteratorAggregate, \Countable
 {
@@ -36,15 +38,15 @@ class TransformersContainer implements \IteratorAggregate, \Countable
     /**
      * {@inheritdoc}
      */
-    public function getIterator()
+    public function getIterator(): Traversable
     {
-        return new \ArrayIterator($this->transformers->toArray());
+        return new ArrayIterator($this->transformers->toArray());
     }
 
     /**
      * {@inheritdoc}
      */
-    public function count()
+    public function count(): int
     {
         return count($this->transformers);
     }

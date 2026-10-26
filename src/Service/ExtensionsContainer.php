@@ -13,6 +13,7 @@ namespace Dmytrof\FractalBundle\Service;
 
 use Dmytrof\FractalBundle\Transformer\Extension\ExtensionInterface;
 use Doctrine\Common\Collections\{ArrayCollection, Collection};
+use Traversable;
 
 class ExtensionsContainer implements \IteratorAggregate
 {
@@ -36,7 +37,7 @@ class ExtensionsContainer implements \IteratorAggregate
     /**
      * {@inheritdoc}
      */
-    public function getIterator()
+    public function getIterator(): Traversable
     {
         return new \ArrayIterator($this->extensions->toArray());
     }
