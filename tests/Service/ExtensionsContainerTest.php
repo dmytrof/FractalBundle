@@ -9,45 +9,43 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Tests\Service;
 
-use Dmytrof\FractalBundle\Tests\Data\TestDataExtension;
 use Dmytrof\FractalBundle\Service\ExtensionsContainer;
+use Dmytrof\FractalBundle\Tests\Data\{TestDataExtension, TestExtension};
 use PHPUnit\Framework\TestCase;
 
 class ExtensionsContainerTest extends TestCase
 {
-    /**
-     * @var TestDataExtension
-     */
-    protected $testExtension;
-
-    public function setUp(): void
-    {
-        parent::setUp();
-
-        $this->testExtension = new TestDataExtension();
-    }
-
-    public function testCreateContainer()
+    public function testCreateContainer(): void
     {
         $container = new ExtensionsContainer([]);
         $this->assertCount(0, $container);
-
-        $container2 = new ExtensionsContainer([$this->testExtension]);
-        $this->assertCount(1, $container2);
-
         $this->assertInstanceOf(\Iterator::class, $container->getIterator());
+
+        $extension = new TestDataExtension();
+        $container2 = new ExtensionsContainer((static fn () => yield $extension)());
+        $this->assertCount(1, $container2);
+        $this->assertSame([$extension], iterator_to_array($container2));
     }
 
-    public function testAddTransformer()
+    public function testAddExtension(): void
     {
-        $container = new ExtensionsContainer([]);
-        $container->addExtension($this->testExtension);
+        $container = new ExtensionsContainer();
+        $extension1 = new TestDataExtension();
+        $extension2 = new TestExtension();
 
-        $this->assertCount(1, $container);
+        $this->assertSame($container, $container->addExtension($extension1)->addExtension($extension2));
+        $this->assertCount(2, $container);
+        $this->assertSame([$extension1, $extension2], iterator_to_array($container));
+    }
 
-        $this->expectException(\Error::class);
-        $container->addExtension(new \StdClass());
+    public function testAddInvalidExtension(): void
+    {
+        $this->expectException(\TypeError::class);
+
+        new ExtensionsContainer([new \stdClass()]);
     }
 }

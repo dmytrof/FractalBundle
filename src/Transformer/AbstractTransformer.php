@@ -9,53 +9,42 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Transformer;
 
-use Doctrine\Common\Collections\{
-    ArrayCollection, Collection
-};
-use League\Fractal\Scope;
-use League\Fractal\TransformerAbstract;
-use Dmytrof\FractalBundle\{
-    Exception\TransformerException, Service\ExtensionsContainer, Transformer\Extension\ExtensionInterface
-};
+use Dmytrof\FractalBundle\{Exception\TransformerException, Service\ExtensionsContainer, Transformer\Extension\ExtensionInterface};
+use Doctrine\Common\Collections\{ArrayCollection, Collection};
+use League\Fractal\Resource\ResourceInterface;
+use League\Fractal\{Scope, TransformerAbstract};
 
 abstract class AbstractTransformer extends TransformerAbstract
 {
+    /**
+     * Class (or interface) of subjects handled by the transformer
+     */
     protected const SUBJECT_CLASS = null;
 
     /**
-     * @var ExtensionsContainer
+     * @var Collection<class-string<ExtensionInterface>, ExtensionInterface>|null
      */
-    protected $extensionsContainer;
+    protected ?Collection $extensions = null;
 
     /**
-     * @var Collection|ExtensionInterface[]
+     * @var array<string, callable>
      */
-    protected $extensions;
+    protected array $includeCalls = [];
 
     /**
-     * @var array
+     * @var list<string>
      */
-    protected $includeCalls;
+    protected array $includesToRoot = [];
 
-    /**
-     * @var array
-     */
-    protected $includesToRoot;
+    protected bool $isSetup = false;
 
-    /**
-     * @var bool
-     */
-    protected $isSetup = false;
-
-    /**
-     * AbstractTransformer constructor.
-     * @param ExtensionsContainer $extensionsContainer
-     */
-    public function __construct(ExtensionsContainer $extensionsContainer)
-    {
-        $this->extensionsContainer = $extensionsContainer;
+    public function __construct(
+        protected ExtensionsContainer $extensionsContainer,
+    ) {
     }
 
     /**
@@ -69,21 +58,18 @@ abstract class AbstractTransformer extends TransformerAbstract
     }
 
     /**
-     * Setup the transformer
-     * @return AbstractTransformer
+     * Setups the transformer (decorates it with supported extensions) once
      */
-    public function setup(): self
+    public function setup(): static
     {
         if (!$this->isSetup) {
             $this->isSetup = true;
             $this->init();
         }
+
         return $this;
     }
 
-    /**
-     * @return ExtensionsContainer
-     */
     public function getExtensionsContainer(): ExtensionsContainer
     {
         return $this->extensionsContainer;
@@ -91,221 +77,206 @@ abstract class AbstractTransformer extends TransformerAbstract
 
     /**
      * Returns subject class
-     * @return string
+     *
+     * @throws TransformerException when SUBJECT_CLASS is not defined
      */
     public function getSubjectClass(): string
     {
-        return static::SUBJECT_CLASS;
+        return static::SUBJECT_CLASS ?? throw new TransformerException(sprintf('%s::SUBJECT_CLASS is not defined.', static::class));
     }
 
     /**
      * Checks if transformer supports subject
-     * @param $subject
-     * @return bool
      */
-    public function supports($subject): bool
+    public function supports(mixed $subject): bool
     {
         $className = $this->getSubjectClass();
-        return is_null($subject) || $subject instanceof $className;
+
+        return null === $subject || $subject instanceof $className;
     }
 
     /**
-     * Returns needed extensions
-     * @return Collection|ExtensionInterface[]
+     * Returns extensions supporting the subject class
+     *
+     * @return Collection<class-string<ExtensionInterface>, ExtensionInterface>
      */
     public function getExtensions(): Collection
     {
-        if (!isset($this->extensions)) {
+        if (null === $this->extensions) {
             $this->extensions = new ArrayCollection();
             try {
                 $reflectionClass = new \ReflectionClass($this->getSubjectClass());
-                /** @var ExtensionInterface $extension */
-                foreach ($this->getExtensionsContainer() as $extension) {
-                    if ($extension->supports($reflectionClass, $this)) {
-                        $this->extensions->set(get_class($extension), $extension);
-                    }
+            } catch (TransformerException|\ReflectionException) {
+                return $this->extensions;
+            }
+            foreach ($this->getExtensionsContainer() as $extension) {
+                if ($extension->supports($reflectionClass, $this)) {
+                    $this->extensions->set($extension::class, $extension);
                 }
-            } catch (\ReflectionException $e) {
             }
         }
+
         return $this->extensions;
     }
 
     /**
-     * Adds default include
-     * @param string $defaultInclude
-     * @return AbstractTransformer
+     * Adds default includes
      */
-    public function addDefaultInclude(string $defaultInclude): self
+    public function addDefaultInclude(string ...$defaultIncludes): static
     {
-        return $this->setDefaultIncludes(array_merge($this->getDefaultIncludes(), func_get_args()));
+        return $this->setDefaultIncludes(array_merge($this->getDefaultIncludes(), $defaultIncludes));
     }
 
     /**
-     * Removes default include
-     * @param string $defaultInclude
-     * @return AbstractTransformer
+     * Removes default includes
      */
-    public function removeDefaultInclude(string $defaultInclude): self
+    public function removeDefaultInclude(string ...$defaultIncludes): static
     {
-        return $this->setDefaultIncludes(array_diff($this->getDefaultIncludes(), func_get_args()));
+        return $this->setDefaultIncludes(array_values(array_diff($this->getDefaultIncludes(), $defaultIncludes)));
     }
 
     /**
      * Resets default includes
-     * @return AbstractTransformer
      */
-    public function resetDefaultIncludes(): self
+    public function resetDefaultIncludes(): static
     {
         return $this->setDefaultIncludes([]);
     }
 
     /**
-     * Adds available include
-     * @param string $include
-     * @return AbstractTransformer
+     * Adds available includes
      */
-    public function addAvailableInclude(string $include): self
+    public function addAvailableInclude(string ...$includes): static
     {
-        return $this->setAvailableIncludes(array_merge($this->getAvailableIncludes(), func_get_args()));
+        return $this->setAvailableIncludes(array_merge($this->getAvailableIncludes(), $includes));
     }
 
     /**
-     * Removes available include
-     * @param string $include
-     * @return AbstractTransformer
+     * Removes available includes
      */
-    public function removeAvailableInclude(string $include): self
+    public function removeAvailableInclude(string ...$includes): static
     {
-        return $this->setAvailableIncludes(array_diff($this->getAvailableIncludes(), func_get_args()));
+        return $this->setAvailableIncludes(array_values(array_diff($this->getAvailableIncludes(), $includes)));
     }
 
     /**
      * Returns include calls
-     * @return array
+     *
+     * @return array<string, callable>
      */
     public function getIncludeCalls(): array
     {
-        return (array) $this->includeCalls;
+        return $this->includeCalls;
     }
 
     /**
      * Sets include calls
-     * @param array $includeCalls
-     * @return AbstractTransformer
+     *
+     * @param array<string, callable> $includeCalls
      */
-    public function setIncludeCalls(array $includeCalls): self
+    public function setIncludeCalls(array $includeCalls): static
     {
         $this->includeCalls = $includeCalls;
+
         return $this;
     }
 
     /**
      * Checks if include call exists
-     * @param string $include
-     * @return bool
      */
     public function hasIncludeCall(string $include): bool
     {
-        return isset($this->getIncludeCalls()[$include]);
+        return isset($this->includeCalls[$include]);
     }
 
     /**
-     * Sets include call
-     * @param string $include
-     * @param callable $call
-     * @return AbstractTransformer
+     * Sets include call: callable(mixed $subject, AbstractTransformer $transformer, ParamBag $params): ?ResourceInterface
      */
-    public function setIncludeCall(string $include, callable $call): self
+    public function setIncludeCall(string $include, callable $call): static
     {
-        return $this->setIncludeCalls(array_merge($this->getIncludeCalls(), [$include => $call]));
+        $this->includeCalls[$include] = $call;
+
+        return $this;
     }
 
     /**
      * Returns include call
-     * @param string $include
-     * @return callable|null
      */
     public function getIncludeCall(string $include): ?callable
     {
-        return $this->hasIncludeCall($include) ? $this->getIncludeCalls()[$include] : null;
+        return $this->includeCalls[$include] ?? null;
     }
 
     /**
      * Removes include call
-     * @param string $include
-     * @return AbstractTransformer
      */
-    public function removeIncludeCall(string $include): self
+    public function removeIncludeCall(string $include): static
     {
-        return $this->setIncludeCalls(array_diff_key($this->getIncludeCalls(), [$include => $include]));
+        unset($this->includeCalls[$include]);
+
+        return $this;
     }
 
     /**
-     * Returns includes to root
-     * @return array
+     * Returns includes merged to the root of transformed data
+     *
+     * @return list<string>
      */
     public function getIncludesToRoot(): array
     {
-        return (array) $this->includesToRoot;
+        return $this->includesToRoot;
     }
 
     /**
      * Sets includes to root
-     * @param array $includesToRoot
-     * @return AbstractTransformer
+     *
+     * @param list<string> $includesToRoot
      */
-    public function setIncludesToRoot(array $includesToRoot): self
+    public function setIncludesToRoot(array $includesToRoot): static
     {
-        $this->includesToRoot = $includesToRoot;
+        $this->includesToRoot = array_values($includesToRoot);
+
         return $this;
     }
 
     /**
      * Checks if include to root exists
-     * @param string $include
-     * @return bool
      */
     public function hasIncludeToRoot(string $include): bool
     {
-        return in_array($include, $this->getIncludesToRoot());
+        return in_array($include, $this->includesToRoot, true);
     }
 
     /**
-     * Adds include to root
-     * @param string $include
-     * @return AbstractTransformer
+     * Adds includes to root
      */
-    public function addIncludeToRoot(string $include): self
+    public function addIncludeToRoot(string ...$includes): static
     {
-        return $this->setIncludesToRoot(array_merge($this->getIncludesToRoot(), func_get_args()));
+        return $this->setIncludesToRoot(array_merge($this->includesToRoot, $includes));
     }
 
     /**
-     * Removes include to root
-     * @param string $include
-     * @return AbstractTransformer
+     * Removes includes to root
      */
-    public function removeIncludeToRoot(string $include): self
+    public function removeIncludeToRoot(string ...$includes): static
     {
-        return $this->setIncludesToRoot(array_diff($this->getIncludesToRoot(), func_get_args()));
+        return $this->setIncludesToRoot(array_diff($this->includesToRoot, $includes));
     }
 
     /**
-     * Transforms data
-     * @param \DateTimeInterface|null $dateTime
-     * @param string $format
-     * @return string|null
+     * Transforms date time
      */
     public function transformDateTime(?\DateTimeInterface $dateTime, string $format = \DateTimeInterface::ATOM): ?string
     {
-        return $dateTime ? $dateTime->format($format) : null;
+        return $dateTime?->format($format);
     }
 
     /**
-     * {@inheritdoc}
+     * Transforms subject with the transformer and its extensions
+     *
+     * @throws TransformerException when the subject is not supported
      */
-    public function transform($subject)
+    public function transform(mixed $subject): array
     {
         $this->setup();
         if (!$this->supports($subject)) {
@@ -324,28 +295,25 @@ abstract class AbstractTransformer extends TransformerAbstract
     }
 
     /**
-     * Call Include Method.
+     * Calls include call registered for the include (e.g. by an extension) or include method
      *
      * @internal
      *
-     * @param Scope  $scope
-     * @param string $includeName
-     * @param mixed  $data
-     *
-     * @throws \Exception
-     *
-     * @return \League\Fractal\Resource\ResourceInterface
+     * @return ResourceInterface|false
      */
-    protected function callIncludeMethod(Scope $scope, $includeName, $data)
+    protected function callIncludeMethod(Scope $scope, string $includeName, $data)
     {
-        if ($this->hasIncludeCall($includeName)) {
-            $scopeIdentifier = $scope->getIdentifier($includeName);
-            $params = $scope->getManager()->getIncludeParams($scopeIdentifier);
-
-            return call_user_func($this->getIncludeCall($includeName), $data, $this, $params);
+        if (!$this->hasIncludeCall($includeName)) {
+            return parent::callIncludeMethod($scope, $includeName, $data);
         }
-        return parent::callIncludeMethod($scope, $includeName, $data);
+
+        $params = $scope->getManager()->getIncludeParams($scope->getIdentifier($includeName));
+
+        return call_user_func($this->getIncludeCall($includeName), $data, $this, $params) ?? false;
     }
 
+    /**
+     * Transforms subject to array
+     */
     abstract public function transformSubject($subject): array;
 }

@@ -9,91 +9,126 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Tests\Transformer;
 
-use Dmytrof\FractalBundle\Tests\Data\{Foo, FooTransformer, TestDataExtension, TestExtension};
+use Dmytrof\FractalBundle\Exception\TransformerException;
 use Dmytrof\FractalBundle\Service\ExtensionsContainer;
+use Dmytrof\FractalBundle\Tests\Data\{Foo, FooTransformer, NoSubjectTransformer, StampExtension, TestDataExtension, TestExtension};
 use PHPUnit\Framework\TestCase;
 
 class AbstractTransformerTest extends TestCase
 {
-    /**
-     * @var FooTransformer
-     */
-    protected $transformer;
+    private FooTransformer $transformer;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
         $extensionContainer = new ExtensionsContainer([new TestExtension(), new TestDataExtension()]);
         $this->transformer = new FooTransformer($extensionContainer);
         $this->transformer->setup();
     }
 
-    public function testCreatedTransformer()
+    public function testCreatedTransformer(): void
     {
         $this->assertInstanceOf(ExtensionsContainer::class, $this->transformer->getExtensionsContainer());
         $this->assertCount(2, $this->transformer->getExtensionsContainer());
-        $this->assertCount(1, $this->transformer->getExtensions());
-        $this->assertEquals(Foo::class, $this->transformer->getSubjectClass());
+        $this->assertSame([TestDataExtension::class], $this->transformer->getExtensions()->getKeys());
+        $this->assertSame(Foo::class, $this->transformer->getSubjectClass());
 
-        $this->assertCount(2, $this->transformer->getAvailableIncludes());
-        $this->assertCount(1, $this->transformer->getDefaultIncludes());
+        $this->assertSame(['boo', 'child', TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getAvailableIncludes());
+        $this->assertSame([TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getDefaultIncludes());
     }
 
-    public function testTransform()
+    public function testSetupDecoratesOnce(): void
+    {
+        $this->transformer->setup()->setup();
+
+        $this->assertSame([TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getDefaultIncludes());
+    }
+
+    public function testTransform(): void
     {
         $foo = new Foo();
         $foo->bar = 'baz';
         $foo->baz = 'jazz';
 
         $this->assertTrue($this->transformer->supports($foo));
-        $this->assertFalse($this->transformer->supports(new \StdClass()));
+        $this->assertTrue($this->transformer->supports(null));
+        $this->assertFalse($this->transformer->supports(new \stdClass()));
 
-        $this->assertEquals([
+        $this->assertSame([
             'bar' => 'baz',
             'baz' => 'jazz',
         ], $this->transformer->transform($foo));
+        $this->assertSame([], $this->transformer->transform(null));
     }
 
-    public function testAvailableIncludes()
+    public function testTransformWithExtensionData(): void
+    {
+        $foo = new Foo();
+        $foo->bar = 'baz';
+
+        $transformer = new FooTransformer(new ExtensionsContainer([new StampExtension()]));
+
+        $this->assertSame(['bar' => 'baz', 'baz' => null, 'stamp' => 'stamped'], $transformer->transform($foo));
+    }
+
+    public function testTransformUnsupportedSubject(): void
+    {
+        $this->expectException(TransformerException::class);
+        $this->expectExceptionMessage(FooTransformer::class.' transforms '.Foo::class.' subjects only.');
+
+        $this->transformer->transform(new \stdClass());
+    }
+
+    public function testUndefinedSubjectClass(): void
+    {
+        $transformer = new NoSubjectTransformer(new ExtensionsContainer([new StampExtension()]));
+        $this->assertCount(0, $transformer->getExtensions());
+
+        $this->expectException(TransformerException::class);
+        $this->expectExceptionMessage(NoSubjectTransformer::class.'::SUBJECT_CLASS is not defined.');
+        $transformer->getSubjectClass();
+    }
+
+    public function testAvailableIncludes(): void
     {
         $this->transformer->addAvailableInclude('bar', 'baz');
-        $this->assertCount(4, $this->transformer->getAvailableIncludes());
-        $this->assertEquals(['boo', TestDataExtension::TEST_DATA_INCLUDE, 'bar', 'baz'], $this->transformer->getAvailableIncludes());
+        $this->assertSame(['boo', 'child', TestDataExtension::TEST_DATA_INCLUDE, 'bar', 'baz'], $this->transformer->getAvailableIncludes());
 
         $this->transformer->removeAvailableInclude('baz', 'bar');
-        $this->assertEquals(['boo', TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getAvailableIncludes());
+        $this->assertSame(['boo', 'child', TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getAvailableIncludes());
 
         $includes = ['foo', 'bar', 'baz'];
-        $this->assertEquals($includes, $this->transformer->setAvailableIncludes($includes)->getAvailableIncludes());
+        $this->assertSame($includes, $this->transformer->setAvailableIncludes($includes)->getAvailableIncludes());
     }
 
-    public function testDefaultIncludes()
+    public function testDefaultIncludes(): void
     {
         $this->transformer->addDefaultInclude('bar', 'baz');
-        $this->assertCount(3, $this->transformer->getDefaultIncludes());
-        $this->assertEquals([TestDataExtension::TEST_DATA_INCLUDE, 'bar', 'baz'], $this->transformer->getDefaultIncludes());
+        $this->assertSame([TestDataExtension::TEST_DATA_INCLUDE, 'bar', 'baz'], $this->transformer->getDefaultIncludes());
 
         $this->transformer->removeDefaultInclude('baz', 'bar');
-        $this->assertEquals([TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getDefaultIncludes());
+        $this->assertSame([TestDataExtension::TEST_DATA_INCLUDE], $this->transformer->getDefaultIncludes());
 
         $includes = ['foo', 'bar', 'baz'];
-        $this->assertEquals($includes, $this->transformer->setDefaultIncludes($includes)->getDefaultIncludes());
-        $this->assertEquals([], $this->transformer->resetDefaultIncludes()->getDefaultIncludes());
+        $this->assertSame($includes, $this->transformer->setDefaultIncludes($includes)->getDefaultIncludes());
+        $this->assertSame([], $this->transformer->resetDefaultIncludes()->getDefaultIncludes());
     }
 
-    public function testIncludeCalls()
+    public function testIncludeCalls(): void
     {
         $this->assertCount(1, $this->transformer->getIncludeCalls());
 
-        $this->transformer->setIncludeCall('bar', function () {return 'bar';});
-        $this->assertCount(2,  $this->transformer->getIncludeCalls());
+        $this->transformer->setIncludeCall('bar', static fn () => 'bar');
+        $this->assertCount(2, $this->transformer->getIncludeCalls());
 
         $calls = [
-            'bar' =>  function () {return 'bar';},
-            'baz' =>  function () {return 'baz';},
+            'bar' => static fn () => 'bar',
+            'baz' => static fn () => 'baz',
         ];
-        $this->assertEquals($calls, $this->transformer->setIncludeCalls($calls)->getIncludeCalls());
+        $this->assertSame($calls, $this->transformer->setIncludeCalls($calls)->getIncludeCalls());
         $this->assertTrue($this->transformer->hasIncludeCall('bar'));
         $this->assertFalse($this->transformer->hasIncludeCall('test'));
         $this->assertSame($calls['baz'], $this->transformer->getIncludeCall('baz'));
@@ -104,23 +139,25 @@ class AbstractTransformerTest extends TestCase
         $this->assertCount(1, $this->transformer->getIncludeCalls());
     }
 
-    public function testIncludeToRoot()
+    public function testIncludeToRoot(): void
     {
-        $this->assertCount(0, $this->transformer->getIncludesToRoot());
+        $this->assertSame([], $this->transformer->getIncludesToRoot());
 
         $this->transformer->setIncludesToRoot(['bar', 'baz']);
-        $this->assertCount(2,  $this->transformer->getIncludesToRoot());
-        $this->assertEquals(['bar', 'baz'], $this->transformer->getIncludesToRoot());
+        $this->assertSame(['bar', 'baz'], $this->transformer->getIncludesToRoot());
 
-        $this->assertEquals(['bar', 'baz', 'bar1', 'baz1'], $this->transformer->addIncludeToRoot('bar1', 'baz1')->getIncludesToRoot());
+        $this->assertSame(['bar', 'baz', 'bar1', 'baz1'], $this->transformer->addIncludeToRoot('bar1', 'baz1')->getIncludesToRoot());
         $this->assertTrue($this->transformer->hasIncludeToRoot('bar1'));
         $this->assertFalse($this->transformer->removeIncludeToRoot('bar1', 'baz1')->hasIncludeToRoot('bar1'));
+        $this->assertSame(['bar', 'baz'], $this->transformer->getIncludesToRoot());
     }
 
-    public function testTransformDateTime()
+    public function testTransformDateTime(): void
     {
-        $dateTime = new \DateTime();
-        $this->assertIsString($this->transformer->transformDateTime($dateTime));
+        $dateTime = new \DateTimeImmutable('2026-01-02 03:04:05', new \DateTimeZone('UTC'));
+
+        $this->assertSame('2026-01-02T03:04:05+00:00', $this->transformer->transformDateTime($dateTime));
+        $this->assertSame('2026-01-02', $this->transformer->transformDateTime($dateTime, 'Y-m-d'));
         $this->assertNull($this->transformer->transformDateTime(null));
     }
 }

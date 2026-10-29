@@ -9,21 +9,19 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\DependencyInjection;
 
-use Symfony\Component\Config\Definition\{
-    Builder\TreeBuilder, ConfigurationInterface
-};
+use Symfony\Component\Config\Definition\Builder\TreeBuilder;
+use Symfony\Component\Config\Definition\ConfigurationInterface;
 
 class Configuration implements ConfigurationInterface
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function getConfigTreeBuilder()
-    {
-        $treeBuilder = new TreeBuilder('df_studio_fractal');
+    public const ROOT_NAME = 'dmytrof_fractal';
 
-        return $treeBuilder;
+    public function getConfigTreeBuilder(): TreeBuilder
+    {
+        return new TreeBuilder(self::ROOT_NAME);
     }
 }

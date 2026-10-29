@@ -9,6 +9,8 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle;
 
 use Dmytrof\FractalBundle\DependencyInjection\Compiler\FOSRestPass;
@@ -17,9 +19,6 @@ use Symfony\Component\HttpKernel\Bundle\Bundle;
 
 class DmytrofFractalBundle extends Bundle
 {
-    /**
-     * {@inheritdoc}
-     */
     public function build(ContainerBuilder $container): void
     {
         parent::build($container);

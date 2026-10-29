@@ -9,61 +9,61 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Service;
 
 use Dmytrof\FractalBundle\Exception\TransformerException;
 use Dmytrof\FractalBundle\Serializer\SimpleArraySerializer;
 use Dmytrof\FractalBundle\Transformer\AbstractTransformer;
-use Doctrine\Common\Collections\ArrayCollection;
-use League\Fractal\{Resource\Collection, Resource\Item, ScopeFactoryInterface, Manager as BaseManager};
+use Doctrine\Common\Collections\{ArrayCollection, Collection as DoctrineCollection};
+use League\Fractal\{Manager as BaseManager, Resource\Collection, Resource\Item, TransformerAbstract};
 
+/**
+ * Transformers may be passed as instances, callables or class names of transformers registered in the container
+ */
 class FractalManager extends BaseManager
 {
     public const CODE = 'fractal';
 
-    /**
-     * @var TransformersContainer
-     */
-    protected $transformersContainer;
-
-    /**
-     * FractalManager constructor.
-     * @param TransformersContainer $transformersContainer
-     * @param ScopeFactory|null $scopeFactory
-     */
-    public function __construct(TransformersContainer $transformersContainer, ScopeFactory $scopeFactory)
-    {
-        parent::__construct($scopeFactory);
+    public function __construct(
+        protected TransformersContainer $transformersContainer,
+        ?ScopeFactory $scopeFactory = null,
+    ) {
+        parent::__construct($scopeFactory ?? new ScopeFactory());
         $this->setSerializer(new SimpleArraySerializer());
-        $this->transformersContainer = $transformersContainer;
     }
 
     /**
      * Returns paginator data
-     * @param iterable $iterator
-     * @param $transformer
-     * @return array
      */
-    public function getPaginatorData(iterable $iterator, $transformer): array
+    public function getPaginatorData(iterable $iterator, TransformerAbstract|callable|string $transformer): array
     {
-        return $this->createData(new Collection($iterator, $transformer))->toArray();
+        return $this->getCollectionData($iterator, $transformer);
     }
 
     /**
-     * Returns model data
-     * @param $model
-     * @param $transformer
-     * @return array
+     * Returns model data (null for a null model)
      */
-    public function getModelData($model, $transformer): array
+    public function getModelData(mixed $model, TransformerAbstract|callable|string $transformer): ?array
     {
         return $this->createData(new Item($model, $transformer))->toArray();
     }
 
     /**
-     * Returns transformer
-     * @param string $transformerClass
-     * @return AbstractTransformer
+     * Returns collection data
+     */
+    public function getCollectionData(iterable $data, TransformerAbstract|callable|string $transformer): array
+    {
+        return $this->createData(new Collection($data, $transformer))->toArray() ?? [];
+    }
+
+    /**
+     * Returns transformer by class name
+     *
+     * @param class-string<AbstractTransformer> $transformerClass
+     *
+     * @throws TransformerException
      */
     public function getTransformer(string $transformerClass): AbstractTransformer
     {
@@ -71,25 +71,15 @@ class FractalManager extends BaseManager
     }
 
     /**
-     * Returns collection data
-     * @param iterable $data
-     * @param $transformer
-     * @return array
+     * Returns transformers supporting the subject
+     *
+     * @return DoctrineCollection<int, AbstractTransformer>
+     *
+     * @throws TransformerException
      */
-    public function getCollectionData(iterable $data, $transformer): array
-    {
-        return $this->createData(new Collection($data, $transformer))->toArray();
-    }
-
-    /**
-     * Returns transformers for subject
-     * @param $subject
-     * @return \Doctrine\Common\Collections\Collection
-     */
-    public function getTransformersForSubject($subject): \Doctrine\Common\Collections\Collection
+    public function getTransformersForSubject(mixed $subject): DoctrineCollection
     {
         $collection = new ArrayCollection();
-        /** @var AbstractTransformer $transformer */
         foreach ($this->transformersContainer as $transformer) {
             if ($transformer->supports($subject)) {
                 $collection->add($transformer);
@@ -98,6 +88,7 @@ class FractalManager extends BaseManager
         if ($collection->count()) {
             return $collection;
         }
-        throw new TransformerException(sprintf('There is no transformer for subject %s', is_scalar($subject) ? $subject : get_class($subject)));
+
+        throw new TransformerException(sprintf('There is no transformer for subject %s', is_scalar($subject) ? (string) $subject : get_debug_type($subject)));
     }
 }

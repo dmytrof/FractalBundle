@@ -9,26 +9,37 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\DependencyInjection;
 
 use Dmytrof\FractalBundle\Transformer\{AbstractTransformer, Extension\ExtensionInterface};
-use Symfony\Component\DependencyInjection\{ContainerBuilder, Loader};
-use Symfony\Component\{Config\FileLocator, HttpKernel\DependencyInjection\Extension};
+use Symfony\Component\Config\FileLocator;
+use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Extension\Extension;
+use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 
 class DmytrofFractalExtension extends Extension
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function load(array $configs, ContainerBuilder $container)
+    public const TRANSFORMER_TAG = 'dmytrof.fractal.transformer';
+    public const TRANSFORMER_EXTENSION_TAG = 'dmytrof.fractal.transformer.extension';
+
+    public function load(array $configs, ContainerBuilder $container): void
     {
-        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__ . '/../Resources/config'));
-        $loader->load('services.yml');
+        $this->processConfiguration(new Configuration(), $configs);
+
+        $loader = new PhpFileLoader($container, new FileLocator(__DIR__.'/../Resources/config'));
+        $loader->load('services.php');
 
         $container->registerForAutoconfiguration(AbstractTransformer::class)
-            ->addTag('dmytrof.fractal.transformer');
+            ->addTag(self::TRANSFORMER_TAG);
 
         $container->registerForAutoconfiguration(ExtensionInterface::class)
-            ->addTag('dmytrof.fractal.transformer.extension');
+            ->addTag(self::TRANSFORMER_EXTENSION_TAG);
+    }
+
+    public function getAlias(): string
+    {
+        return Configuration::ROOT_NAME;
     }
 }

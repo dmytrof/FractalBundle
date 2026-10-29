@@ -9,67 +9,74 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Scope;
 
-use Dmytrof\FractalBundle\{Exception\TransformerException, Service\FractalManager, Transformer\AbstractTransformer};
-use League\Fractal\{Resource\ResourceInterface, Scope as BaseScope, TransformerAbstract};
+use Dmytrof\FractalBundle\{Exception\TransformerException, Serializer\SimpleArraySerializer, Service\FractalManager, Transformer\AbstractTransformer};
+use League\Fractal\Resource\{Item, ResourceInterface};
+use League\Fractal\Scope as BaseScope;
+use League\Fractal\Serializer\Serializer;
 
 class Scope extends BaseScope
 {
-    /**
-     * Scope constructor.
-     * @param FractalManager $manager
-     * @param ResourceInterface $resource
-     * @param string|null $scopeIdentifier
-     */
     public function __construct(FractalManager $manager, ResourceInterface $resource, ?string $scopeIdentifier = null)
     {
         parent::__construct($manager, $resource, $scopeIdentifier);
     }
 
-    /**
-     * Returns manager
-     * @return FractalManager
-     */
     public function getManager(): FractalManager
     {
-        return parent::getManager();
+        return $this->manager;
     }
 
     /**
-     * @param TransformerAbstract|callable|string $transformer
-     * @param mixed                        $data
-     * @return array
+     * Allows transformer class names (transformers registered in FractalManager) as transformers,
+     * moves "includes to root" to the root of transformed data and sorts the data by keys
+     *
+     * @param AbstractTransformer|callable|string|null $transformer
      */
-    protected function fireTransformer($transformer, $data)
+    protected function fireTransformer($transformer, $data): array
     {
-        if (is_null($data)) {
-            return [[],[]];
+        if (null === $data) {
+            return [[], []];
         }
-        if (is_string($transformer)) {
-            $transformer = $this->getTransformer($transformer);
+        if (is_string($transformer) && !is_callable($transformer)) {
+            $transformer = $this->getTransformer($transformer)
+                ?? throw new TransformerException(sprintf('Undefined transformer with class %s', $transformer));
         }
-        list($transformedData, $includedData) = parent::fireTransformer($transformer, $data);
+        [$transformedData, $includedData] = parent::fireTransformer($transformer, $data);
         if ($transformer instanceof AbstractTransformer && $transformer->getIncludesToRoot()) {
             $includesToRoot = array_flip($transformer->getIncludesToRoot());
             $dataToRoot = array_intersect_key($transformedData, $includesToRoot);
             $transformedData = array_diff_key($transformedData, $includesToRoot);
-            $transformedData = array_merge($transformedData, ...array_values($dataToRoot));
+            $transformedData = array_merge($transformedData, ...array_values(array_filter($dataToRoot, is_array(...))));
         }
         ksort($transformedData);
+
         return [$transformedData, $includedData];
     }
 
     /**
+     * SimpleArraySerializer serializes an empty item (e.g. a null subject) as null
+     */
+    protected function serializeResource(Serializer $serializer, $data): ?array
+    {
+        if ($serializer instanceof SimpleArraySerializer && $this->resource instanceof Item && !$data) {
+            return $serializer->null();
+        }
+
+        return parent::serializeResource($serializer, $data);
+    }
+
+    /**
      * Returns transformer service
-     * @param string $transformerClass
-     * @return AbstractTransformer|null
      */
     protected function getTransformer(string $transformerClass): ?AbstractTransformer
     {
         try {
             return $this->getManager()->getTransformer($transformerClass);
-        } catch (TransformerException $e) {
+        } catch (TransformerException) {
             return null;
         }
     }

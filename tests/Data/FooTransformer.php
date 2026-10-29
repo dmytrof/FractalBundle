@@ -9,6 +9,8 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Tests\Data;
 
 use Dmytrof\FractalBundle\Transformer\AbstractTransformer;
@@ -18,8 +20,9 @@ class FooTransformer extends AbstractTransformer
 {
     protected const SUBJECT_CLASS = Foo::class;
 
-    protected $availableIncludes = [
+    protected array $availableIncludes = [
         'boo',
+        'child',
     ];
 
     public function transformSubject($subject): array
@@ -33,5 +36,11 @@ class FooTransformer extends AbstractTransformer
     public function includeBoo(Foo $subject): ResourceInterface
     {
         return $this->primitive($subject->getBooData());
+    }
+
+    public function includeChild(Foo $subject): ResourceInterface
+    {
+        // Transformer class name is resolved by FractalManager
+        return $this->item($subject->child, self::class);
     }
 }

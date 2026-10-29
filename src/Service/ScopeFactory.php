@@ -9,6 +9,8 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Service;
 
 use Dmytrof\FractalBundle\Exception\RuntimeException;
@@ -17,17 +19,12 @@ use League\Fractal\{Manager, Resource\ResourceInterface, ScopeFactory as BaseSco
 
 class ScopeFactory extends BaseScopeFactory
 {
-    /**
-     * @param Manager $manager
-     * @param ResourceInterface $resource
-     * @param string|null $scopeIdentifier
-     * @return Scope
-     */
-    public function createScopeFor(Manager $manager, ResourceInterface $resource, $scopeIdentifier = null)
+    public function createScopeFor(Manager $manager, ResourceInterface $resource, ?string $scopeIdentifier = null): Scope
     {
         if (!$manager instanceof FractalManager) {
-            throw new RuntimeException(sprintf('Manager must be instance of %s. Input vas: %s', FractalManager::class, get_class($manager)));
+            throw new RuntimeException(sprintf('Manager must be instance of %s. Input was: %s', FractalManager::class, get_debug_type($manager)));
         }
+
         return new Scope($manager, $resource, $scopeIdentifier);
     }
 }

@@ -9,13 +9,18 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Model;
+
+use Dmytrof\FractalBundle\Transformer\AbstractTransformer;
 
 interface FractalTransformableInterface
 {
     /**
      * Returns fractal transformer class
-     * @return string
+     *
+     * @return class-string<AbstractTransformer>
      */
     public static function getFractalTransformerClass(): string;
 }

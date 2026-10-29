@@ -9,25 +9,27 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Service;
 
-use ArrayIterator;
 use Dmytrof\FractalBundle\{Exception\TransformerException, Transformer\AbstractTransformer};
 use Doctrine\Common\Collections\{ArrayCollection, Collection};
-use Traversable;
 
+/**
+ * @implements \IteratorAggregate<class-string<AbstractTransformer>, AbstractTransformer>
+ */
 class TransformersContainer implements \IteratorAggregate, \Countable
 {
     /**
-     * @var Collection|AbstractTransformer[]
+     * @var Collection<class-string<AbstractTransformer>, AbstractTransformer>
      */
-    protected $transformers;
+    protected Collection $transformers;
 
     /**
-     * TransformersContainer constructor.
-     * @param iterable $transformers
+     * @param iterable<AbstractTransformer> $transformers
      */
-    public function __construct(iterable $transformers)
+    public function __construct(iterable $transformers = [])
     {
         $this->transformers = new ArrayCollection();
         foreach ($transformers as $transformer) {
@@ -36,49 +38,41 @@ class TransformersContainer implements \IteratorAggregate, \Countable
     }
 
     /**
-     * {@inheritdoc}
+     * @return \ArrayIterator<class-string<AbstractTransformer>, AbstractTransformer>
      */
-    public function getIterator(): Traversable
+    public function getIterator(): \ArrayIterator
     {
-        return new ArrayIterator($this->transformers->toArray());
+        return new \ArrayIterator($this->transformers->toArray());
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function count(): int
     {
-        return count($this->transformers);
+        return $this->transformers->count();
     }
 
     /**
      * Adds transformer
-     * @param AbstractTransformer $transformer
-     * @return TransformersContainer
      */
-    public function addTransformer(AbstractTransformer $transformer): self
+    public function addTransformer(AbstractTransformer $transformer): static
     {
-        $this->transformers->set(get_class($transformer), $transformer);
+        $this->transformers->set($transformer::class, $transformer);
+
         return $this;
     }
 
     /**
      * Returns transformer by class name
-     * @param string $className
-     * @return AbstractTransformer
+     *
+     * @throws TransformerException
      */
     public function get(string $className): AbstractTransformer
     {
-        if (!$this->has($className)) {
-            throw new TransformerException(sprintf('Undefined transformer with class %s', $className));
-        }
-        return $this->transformers->get($className);
+        return $this->transformers->get($className)
+            ?? throw new TransformerException(sprintf('Undefined transformer with class %s', $className));
     }
 
     /**
      * Checks if container has transformer with class name
-     * @param string $className
-     * @return bool
      */
     public function has(string $className): bool
     {

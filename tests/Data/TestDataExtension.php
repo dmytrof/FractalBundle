@@ -9,6 +9,8 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Tests\Data;
 
 use Dmytrof\FractalBundle\Transformer\{AbstractTransformer, Extension\AbstractExtension};
@@ -28,7 +30,7 @@ class TestDataExtension extends AbstractExtension
         $transformer
             ->addAvailableInclude(self::TEST_DATA_INCLUDE)
             ->addDefaultInclude(self::TEST_DATA_INCLUDE)
-            ->setIncludeCall(self::TEST_DATA_INCLUDE, [$this, 'includeTestData'])
+            ->setIncludeCall(self::TEST_DATA_INCLUDE, $this->includeTestData(...))
         ;
     }
 

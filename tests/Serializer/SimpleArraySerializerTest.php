@@ -9,54 +9,40 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Tests\Serializer;
 
 use Dmytrof\FractalBundle\Serializer\SimpleArraySerializer;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class SimpleArraySerializerTest extends TestCase
 {
-    /**
-     * @dataProvider getDataProvider
-     * @param $resourceKey
-     * @param array $data
-     * @param array $result
-     */
-    public function testSerializeCollection($resourceKey, array $data, array $result)
+    #[DataProvider('collectionDataProvider')]
+    public function testSerializeCollection(?string $resourceKey, array $data, array $result): void
     {
         $serializer = new SimpleArraySerializer();
 
-        $this->assertEquals($result, $serializer->collection($resourceKey, $data));
+        $this->assertSame($result, $serializer->collection($resourceKey, $data));
     }
 
-    public function getDataProvider(): array
+    public static function collectionDataProvider(): iterable
     {
-        return [
-            [
-                'test',
-                ['foo' => 'bar'],
-                ['test' => ['foo' => 'bar']],
-            ],
-            [
-                1,
-                ['foo' => 'bar'],
-                [1 => ['foo' => 'bar']],
-            ],
-            [
-                '',
-                ['foo' => 'bar'],
-                ['foo' => 'bar'],
-            ],
-            [
-                0,
-                ['foo' => 'bar'],
-                ['foo' => 'bar'],
-            ],
-            [
-                null,
-                ['foo' => 'bar'],
-                ['foo' => 'bar'],
-            ]
-        ];
+        yield 'resource key' => ['test', ['foo' => 'bar'], ['test' => ['foo' => 'bar']]];
+        yield 'numeric resource key' => ['1', ['foo' => 'bar'], [1 => ['foo' => 'bar']]];
+        yield 'empty resource key' => ['', ['foo' => 'bar'], ['foo' => 'bar']];
+        yield 'zero resource key' => ['0', ['foo' => 'bar'], ['foo' => 'bar']];
+        yield 'null resource key' => [null, ['foo' => 'bar'], ['foo' => 'bar']];
+    }
+
+    public function testSerializeItem(): void
+    {
+        $serializer = new SimpleArraySerializer();
+
+        $this->assertSame(['foo' => 'bar'], $serializer->item('test', ['foo' => 'bar']));
+        $this->assertSame(['foo' => 'bar'], $serializer->item(null, ['foo' => 'bar']));
+        $this->assertSame([], $serializer->item(null, []));
+        $this->assertNull($serializer->null());
     }
 }

@@ -9,50 +9,33 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Serializer;
 
 use League\Fractal\Serializer\ArraySerializer as BaseArraySerializer;
 
+/**
+ * Collections are not wrapped by "data" key (unless resource key is set), items are returned as is.
+ * Empty items are serialized as null by Dmytrof\FractalBundle\Scope\Scope.
+ */
 class SimpleArraySerializer extends BaseArraySerializer
 {
-    /**
-     * Serialize a collection.
-     *
-     * @param string $resourceKey
-     * @param array  $data
-     *
-     * @return array
-     */
-    public function collection($resourceKey, array $data)
+    public function collection(?string $resourceKey, array $data): array
     {
         if ($resourceKey) {
-            return [$resourceKey  => $data];
+            return [$resourceKey => $data];
         }
+
         return $data;
     }
 
-    /**
-     * Serialize an item.
-     *
-     * @param string $resourceKey
-     * @param array  $data
-     *
-     * @return array|null
-     */
-    public function item($resourceKey, array $data)
+    public function item(?string $resourceKey, array $data): array
     {
-        if (!$data) {
-            return null;
-        }
         return $data;
     }
 
-    /**
-     * Serialize null resource.
-     *
-     * @return null
-     */
-    public function null()
+    public function null(): ?array
     {
         return null;
     }

@@ -9,24 +9,27 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Service;
 
 use Dmytrof\FractalBundle\Transformer\Extension\ExtensionInterface;
 use Doctrine\Common\Collections\{ArrayCollection, Collection};
-use Traversable;
 
-class ExtensionsContainer implements \IteratorAggregate
+/**
+ * @implements \IteratorAggregate<int, ExtensionInterface>
+ */
+class ExtensionsContainer implements \IteratorAggregate, \Countable
 {
     /**
-     * @var Collection|ExtensionInterface[]
+     * @var Collection<int, ExtensionInterface>
      */
-    protected $extensions;
+    protected Collection $extensions;
 
     /**
-     * ExtensionsContainer constructor.
-     * @param iterable $extensions
+     * @param iterable<ExtensionInterface> $extensions
      */
-    public function __construct(iterable $extensions)
+    public function __construct(iterable $extensions = [])
     {
         $this->extensions = new ArrayCollection();
         foreach ($extensions as $extension) {
@@ -35,21 +38,25 @@ class ExtensionsContainer implements \IteratorAggregate
     }
 
     /**
-     * {@inheritdoc}
+     * @return \ArrayIterator<int, ExtensionInterface>
      */
-    public function getIterator(): Traversable
+    public function getIterator(): \ArrayIterator
     {
         return new \ArrayIterator($this->extensions->toArray());
     }
 
+    public function count(): int
+    {
+        return $this->extensions->count();
+    }
+
     /**
      * Adds extension
-     * @param ExtensionInterface $extension
-     * @return ExtensionsContainer
      */
-    public function addExtension(ExtensionInterface $extension): self
+    public function addExtension(ExtensionInterface $extension): static
     {
         $this->extensions->add($extension);
+
         return $this;
     }
 }

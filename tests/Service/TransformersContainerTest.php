@@ -9,57 +9,61 @@
  * file that was distributed with this source code.
  */
 
+declare(strict_types=1);
+
 namespace Dmytrof\FractalBundle\Tests\Service;
 
-use Dmytrof\FractalBundle\{Exception\TransformerException,
-    Tests\Data\FooTransformer};
+use Dmytrof\FractalBundle\Exception\TransformerException;
 use Dmytrof\FractalBundle\Service\{ExtensionsContainer, TransformersContainer};
+use Dmytrof\FractalBundle\Tests\Data\FooTransformer;
 use PHPUnit\Framework\TestCase;
 
 class TransformersContainerTest extends TestCase
 {
-    /**
-     * @var FooTransformer
-     */
-    protected $testTransformer;
+    private FooTransformer $testTransformer;
 
-    public function setUp(): void
+    protected function setUp(): void
     {
-        parent::setUp();
-
-        $extensionsContainer = $this->createMock(ExtensionsContainer::class);
-        $this->testTransformer = new FooTransformer($extensionsContainer);
+        $this->testTransformer = new FooTransformer(new ExtensionsContainer());
     }
 
-    public function testCreateContainer()
+    public function testCreateContainer(): void
     {
         $container = new TransformersContainer([]);
         $this->assertCount(0, $container);
-        $this->assertSame(0, $container->count());
+        $this->assertInstanceOf(\Iterator::class, $container->getIterator());
 
         $container2 = new TransformersContainer([$this->testTransformer]);
         $this->assertCount(1, $container2);
-        $this->assertSame(1, $container2->count());
-
-        $this->assertInstanceOf(\Iterator::class, $container->getIterator());
+        $this->assertSame([FooTransformer::class => $this->testTransformer], iterator_to_array($container2));
     }
 
-    public function testAddTransformer()
+    public function testAddTransformer(): void
     {
-        $container = new TransformersContainer([]);
-        $container->addTransformer($this->testTransformer);
+        $container = new TransformersContainer();
+        $this->assertSame($container, $container->addTransformer($this->testTransformer));
 
-        $this->expectException(\Error::class);
-        $container->addTransformer(new \StdClass());
-
+        // Transformers are unique by class
+        $container->addTransformer($another = new FooTransformer(new ExtensionsContainer()));
         $this->assertCount(1, $container);
-        $this->assertSame(1, $container->count());
 
         $this->assertTrue($container->has(FooTransformer::class));
         $this->assertFalse($container->has('SomeClass'));
+        $this->assertSame($another, $container->get(FooTransformer::class));
+    }
 
-        $this->assertSame($this->testTransformer, $container->get(FooTransformer::class));
+    public function testAddInvalidTransformer(): void
+    {
+        $this->expectException(\TypeError::class);
+
+        (new TransformersContainer())->addTransformer(new \stdClass());
+    }
+
+    public function testGetUndefinedTransformer(): void
+    {
         $this->expectException(TransformerException::class);
-        $container->get('SomeClass');
+        $this->expectExceptionMessage('Undefined transformer with class SomeClass');
+
+        (new TransformersContainer([$this->testTransformer]))->get('SomeClass');
     }
 }
